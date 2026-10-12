@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Điều hành nhóm – Hệ thống NVQS</title>
+<link rel="stylesheet" href="style.css"></head><body><div id="app"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* Cấu hình Firebase của nhóm. Để trống databaseURL = chế độ thử trên 1 máy */
+const CFG={apiKey:"AIzaSyAwXaPGlVnFZiL5y55iUI5n2gfkM-qzXkI",authDomain:"teamwordchdh-knn.firebaseapp.com",databaseURL:"https://teamwordchdh-knn-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"teamwordchdh-knn",storageBucket:"teamwordchdh-knn.firebasestorage.app",messagingSenderId:"498015654684",appId:"1:498015654684:web:f68313cd13484827a9e0d9"};
+
+const PH=['Khởi động và lập kế hoạch','Phân tích','Thiết kế','Mã hóa','Kiểm thử','Vận hành bảo trì'];
+const ST=['Chưa làm','Đang làm','Chờ rà soát','Hoàn thành','Cần làm lại'];
+const SEED=[[
+'Xác định phạm vi và giới hạn hệ thống|Chốt phạm vi quản lý nguồn và theo dõi tiến độ NVQS cấp xã/phường; nêu nội dung ngoài phạm vi.|NT|TV1, TV2',
+'Xác định tác nhân và nhu cầu từng bên|Liệt kê Ban CHQS, Hội đồng NVQS, y tế, cơ quan phối hợp, cấp trên, công dân và nhu cầu từng bên.|NT|TV1',
+'Soạn bộ câu hỏi khảo sát|Câu hỏi theo từng khâu từ đăng ký NVQS đến giao nhận quân.|TV1|Nhóm trưởng',
+'Thực hiện khảo sát đóng vai|Nhóm trưởng trả lời theo vai cán bộ NVQS; TV1 ghi biên bản; TV2 ghi nhận biểu mẫu.|NT|TV1, TV2',
+'Thu thập biểu mẫu và dữ liệu mẫu|Sổ đăng ký, phiếu khám, danh sách hoãn/miễn, lệnh gọi, biên bản giao quân, mẫu báo cáo.|TV2|Nhóm trưởng, TV1',
+'Mô tả quy trình hiện trạng|Các bước, người thực hiện, hồ sơ, điểm vướng mắc.|TV1|Nhóm trưởng, TV2',
+'Tổng hợp vấn đề, nguyên nhân và yêu cầu hệ thống|Bảng vấn đề – nguyên nhân – yêu cầu.|TV1|Nhóm trưởng, TV2',
+'Thống nhất kế hoạch và phân công|Chốt người phụ trách, quy tắc đặt tên file và quản lý phiên bản.|NT|TV1, TV2'],[
+'Lập danh sách yêu cầu chức năng và phi chức năng|Đánh mã yêu cầu; gồm bảo mật dữ liệu cá nhân, phân quyền, nhật ký, sao lưu.|TV1|Nhóm trưởng, TV2',
+'Phân rã chức năng theo nhóm nghiệp vụ|Hồ sơ/đăng ký, quản lý nguồn, sơ tuyển–khám sức khỏe, hoãn/miễn, gọi nhập ngũ–giao quân, báo cáo, quản trị.|TV1|Nhóm trưởng, TV2',
+'Vẽ sơ đồ use case|Use case theo từng tác nhân.|TV1|Nhóm trưởng, TV2',
+'Mô tả luồng xử lý chính và ngoại lệ|Luồng chính và ngoại lệ: vắng mặt, khám lại, đổi diện, khiếu nại.|TV1|Nhóm trưởng, TV2',
+'Xác định điểm cần cán bộ có thẩm quyền phê duyệt|Kết luận sức khỏe, hoãn/miễn, lệnh gọi nhập ngũ; hệ thống chỉ hỗ trợ.|NT|TV1, TV2',
+'Xây dựng tiêu chí nghiệm thu chức năng|Mỗi chức năng có đầu vào, xử lý, đầu ra, tiêu chí đạt.|TV1|Nhóm trưởng, TV2'],[
+'Xác định thực thể, thuộc tính và định danh|Công dân, đăng ký, sơ tuyển, khám sức khỏe, hoãn/miễn, lệnh gọi, giao nhận quân, người dùng, nhật ký.|TV2|TV1, Nhóm trưởng',
+'Vẽ ERD|Quan hệ giữa các thực thể.|TV2|TV1',
+'Chuyển ERD sang mô hình quan hệ|Xác định PK/FK và ràng buộc.|TV2|TV1',
+'Chuẩn hóa dữ liệu và lập từ điển dữ liệu|Kiểm tra trùng lặp; mô tả từng trường.|TV2|TV1, Nhóm trưởng',
+'Phác thảo giao diện|Hồ sơ, tra cứu, danh sách nguồn, kết quả khám, hoãn/miễn, tiến độ, báo cáo.|TV2|TV1, Nhóm trưởng',
+'Thiết kế ma trận phân quyền|Vai trò × quyền xem/thêm/sửa/duyệt/xuất; phục vụ bảo mật và riêng tư.|TV2|Nhóm trưởng, TV1',
+'Thiết kế biện pháp kiểm soát theo 4 yếu tố: chính xác, an toàn, bảo mật, riêng tư|Mỗi yếu tố nêu rủi ro và biện pháp.|TV2|Nhóm trưởng, TV1',
+'Thiết kế kiến trúc và điều kiện triển khai|Mô hình triển khai tại xã/phường, quản lý tài khoản, tổng hợp lên cấp trên.|TV2|Nhóm trưởng, TV1'],[
+'Xây dựng quy tắc kiểm soát dữ liệu đầu vào|Trường bắt buộc, định dạng, kiểm tra tuổi, chống trùng (chính xác).|TV2|TV1',
+'Cấu hình phân quyền và quản lý tài khoản|Vai trò, quyền, cấp/khóa/thu hồi tài khoản (bảo mật, riêng tư).|TV2|Nhóm trưởng',
+'Cấu hình nhật ký, sao lưu và khôi phục|Thao tác cần ghi nhật ký; lịch sao lưu; bước khôi phục (an toàn).|TV2|TV1',
+'Dựng bản mẫu giao diện|Dựng màn hình mẫu theo wireframe.|TV2|TV1, Nhóm trưởng',
+'Nhập dữ liệu mẫu|Dữ liệu giả lập đủ tình huống: đủ điều kiện, hoãn, miễn, không đạt sức khỏe, chuyển nơi cư trú.|TV2|TV1',
+'Tích hợp báo cáo Word|Ghép phần khảo sát–phân tích (TV1) và dữ liệu–kiểm soát (TV2); thống nhất thuật ngữ.|NT|TV1, TV2',
+'Thiết kế slide PowerPoint|Tóm tắt vấn đề, quy trình, chức năng, dữ liệu, kiểm soát, kết quả.|TV2|TV1, Nhóm trưởng'],[
+'Lập kịch bản kiểm thử|Ca kiểm thử: đầu vào, thao tác, kết quả mong đợi.|TV1|TV2, Nhóm trưởng',
+'Kiểm thử chức năng nghiệp vụ|Chạy luồng đăng ký → giao nhận quân bằng dữ liệu mẫu.|TV1|Nhóm trưởng',
+'Kiểm thử dữ liệu, phân quyền và các yếu tố kiểm soát|Quy tắc nhập liệu, PK/FK, quyền theo vai trò, nhật ký, sao lưu.|TV2|TV1',
+'Rà soát tính nhất quán giữa khảo sát, chức năng, dữ liệu và kiểm soát|Đối chiếu và lập danh sách điểm cần sửa.|NT|TV1, TV2',
+'Sửa lỗi và cập nhật tài liệu|Sửa theo biên bản rà soát; Word và PPTX cùng phiên bản.|TV1|TV2, Nhóm trưởng',
+'Diễn tập đóng vai và chuẩn bị phản biện|Hỏi – đáp hai vai; câu hỏi phản biện dự kiến.|NT|TV1, TV2'],[
+'Chốt bản nộp và sao lưu hồ sơ|Kiểm tra tên file, định dạng, chính tả, mục lục; sao lưu.|NT|TV1, TV2',
+'Soạn hướng dẫn sử dụng theo vai trò|Thao tác chính cho từng vai trò.|TV1|Nhóm trưởng',
+'Lập kế hoạch triển khai và tập huấn cán bộ xã/phường|Các bước đưa vào sử dụng; thời điểm trước mùa tuyển quân.|NT|TV1',
+'Lập quy trình vận hành, sao lưu định kỳ và xử lý sự cố|Người trực, chu kỳ sao lưu, xử lý mất/sai dữ liệu.|TV2|Nhóm trưởng',
+'Lập kế hoạch bảo trì và cập nhật hệ thống|Cập nhật khi đổi quy định, biểu mẫu, địa giới hành chính.|TV2|Nhóm trưởng']];
+
+/* ---- Lớp dữ liệu: Firebase (realtime) hoặc localStorage (chế độ thử) ---- */
+const LIVE=!!(CFG.databaseURL&&window.firebase);let ref,key;
+function connect(team,cb){
+ if(LIVE){if(!firebase.apps.length)firebase.initializeApp(CFG);ref=firebase.database().ref('teams/'+team);ref.on('value',s=>cb(s.val()))}
+ else{key='nvqs_'+team;const rd=()=>cb(JSON.parse(localStorage.getItem(key)||'null'));window.onstorage=e=>e.key===key&&rd();window._rd=rd;rd()}}
+function put(path,val){
+ if(LIVE)return path?ref.child(path).set(val):ref.set(val);
+ const d=path?JSON.parse(localStorage.getItem(key)||'{}'):val;
+ if(path){const p=path.split('/'),k=p.pop();let o=d;p.forEach(x=>o=o[x]=o[x]||{});val===null?delete o[k]:o[k]=val}
+ localStorage.setItem(key,JSON.stringify(d));window._rd()}
+
+/* ---- Trạng thái và tiện ích ---- */
+const $=s=>document.querySelector(s),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let D=null,me=JSON.parse(localStorage.getItem('nvqs_me')||'null'),tab=0,open=null;
+const names=()=>Object.assign({nt:'Nhóm trưởng',tv1:'TV1',tv2:'TV2'},D&&D.names);
+const R=s=>{const n=names();return esc(s).replace(/Nhóm trưởng/g,esc(n.nt)).replace(/TV1/g,esc(n.tv1)).replace(/TV2/g,esc(n.tv2))};
+const who=r=>esc(names()[(r||'').toLowerCase()]||r);
+const isNT=()=>me&&me.role==='NT';
+const fmt=t=>new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+const log=t=>put('log/'+uid(),{ts:Date.now(),text:t});
+const tasks=()=>Object.entries(D.tasks||{}).map(([id,t])=>({id,...t})).sort((a,b)=>a.ph-b.ph||(a.id>b.id?1:-1));
+
+function start(){connect(me.team,v=>{
+ if(!v||!v.tasks){const tk={};SEED.forEach((p,i)=>p.forEach((s,j)=>{const[ti,ct,ow,sp]=s.split('|');tk['p'+i+'_'+String(j).padStart(2,'0')]={ph:i,ti,ct,ow,sp,st:0}}));
+  return put('',{names:{nt:'Nhóm trưởng',tv1:'TV1',tv2:'TV2'},tasks:tk})}
+ D=v;render()})}
+
+function render(){
+ const a=document.activeElement,keep=a&&a.id?{id:a.id,v:a.value,s:a.selectionStart}:null;
+ $('#app').innerHTML=me?(D?board():'<p class="empty">Đang kết nối…</p>'):login();
+ if(keep){const e=document.getElementById(keep.id);if(e){e.value=keep.v;e.focus();try{e.setSelectionRange(keep.s,keep.s)}catch(_){}}}}
+
+function login(){return `<div class="wrap"><div class="card" style="max-width:460px;margin:40px auto"><h1>Điều hành nhóm – Hệ thống NVQS</h1>
+<p class="ct">Mã nhóm giống nhau thì cả nhóm thấy cùng một bảng. Đặt mã khó đoán, ví dụ nvqs-k47-2026.</p>
+<label class="ct">Mã nhóm<input id="lt" placeholder="nvqs-k47-2026"></label><br><br>
+<label class="ct">Bạn là<select id="lr"><option value="NT">Nhóm trưởng</option><option value="TV1">Thành viên 1 (TV1)</option><option value="TV2">Thành viên 2 (TV2)</option></select></label><br><br>
+<button class="p" data-a="login">Vào bảng điều hành</button></div></div>`}
+
+function board(){
+ const n=names(),T=tasks(),done=T.filter(t=>t.st===3).length,pct=T.length?Math.round(done*100/T.length):0;
+ const att=T.filter(t=>t.blocked||t.st===4);
+ const per=['NT','TV1','TV2'].map(r=>{const m=T.filter(t=>t.ow===r);return `<div class="chip">${who(r)}<b>${m.filter(t=>t.st===3).length}/${m.length} việc</b></div>`}).join('');
+ let list=tab===-1?att:T.filter(t=>t.ph===tab);
+ const cnt={};PH.forEach((_,i)=>cnt[i]=T.filter(t=>t.ph===i&&t.st===3).length+'/'+T.filter(t=>t.ph===i).length);
+ const rows=list.map((t,i)=>{const nc=Object.keys(t.cm||{}).length;
+  return `<tr class="t" data-a="open" data-id="${t.id}"><td>${tab===-1?'':(t.ph+1)+'.'+(i+1)}</td>
+  <td><div class="tt">${R(t.ti)}</div><div class="ct">${R(t.ct)}</div>${t.blocked?'<span class="flag">Đang vướng</span> ':''}${nc?`<span class="ct">${nc} trao đổi</span>`:''}</td>
+  <td>${who(t.ow)}</td><td>${R(t.sp||'')}</td><td><span class="st s${t.st}">${ST[t.st]}</span></td></tr>${open===t.id?detail(t):''}`}).join('');
+ const log=Object.values(D.log||{}).sort((a,b)=>b.ts-a.ts).slice(0,14).map(l=>`<div>${R(l.text)}<br><small>${fmt(l.ts)}</small></div>`).join('')||'<div>Chưa có hoạt động.</div>';
+ return `<header class="hero"><div class="hw"><div>
+ <p class="hs ${LIVE?'':'l'}"><b>●</b> ${LIVE?'Đồng bộ realtime':'Chế độ thử: chỉ đồng bộ giữa các tab cùng máy'} · Nhóm ${esc(me.team)}</p>
+ <h1>Điều hành nhóm NVQS<span>Hệ thống thông tin quản lý, điều hành công dân thực hiện nghĩa vụ quân sự cấp xã/phường</span></h1></div>
+ <div class="big"><b>${pct}%</b><i>${done}/${T.length} việc hoàn thành</i>
+ <div class="ctl" style="justify-content:flex-end;margin-top:8px">Bạn là <select data-a="me">${['NT','TV1','TV2'].map(r=>`<option value="${r}" ${me.role===r?'selected':''}>${who(r)}</option>`).join('')}</select><button data-a="logout">Đổi nhóm</button></div></div></div>
+ <div class="hw rail">${PH.map((p,i)=>{const g=T.filter(t=>t.ph===i),d=g.filter(t=>t.st===3).length,q=g.length?Math.round(d*100/g.length):0;
+ return `<button class="seg ${tab===i?'on':''}" data-a="tab" data-i="${i}"><em>${i+1}</em><span>${p}</span><u><i style="width:${q}%"></i></u><small>${d}/${g.length} việc</small></button>`}).join('')}</div></header>
+ <div class="wrap"><div class="chips">${per}
+ <button class="chip w" data-a="tab" data-i="-1">Đang vướng<b>${T.filter(t=>t.blocked).length}</b></button>
+ <button class="chip r" data-a="tab" data-i="-1">Cần làm lại<b>${T.filter(t=>t.st===4).length}</b></button></div>
+ <div class="grid"><div>
+ <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">${tab===-1?'Việc đang vướng hoặc cần làm lại':PH[tab]}</h2><button data-a="addform">+ Giao thêm nhiệm vụ</button></div>
+ ${open==='_add'?addForm():''}
+ <div class="scroll">${rows?`<table><tr><th>STT</th><th>Công việc và nội dung yêu cầu</th><th>Chịu trách nhiệm</th><th>Phối hợp</th><th>Trạng thái</th></tr>${rows}</table>`:'<p class="empty">Chưa có việc nào ở mục này.</p>'}</div></div>
+ </div><div><div class="card"><h2>Họ tên thành viên</h2><div class="row">
+ <label>Nhóm trưởng<input id="n_nt" value="${esc(n.nt)}"></label><label>Thành viên 1<input id="n_tv1" value="${esc(n.tv1)}"></label><label>Thành viên 2<input id="n_tv2" value="${esc(n.tv2)}"></label>
+ <button class="p" data-a="names">Cập nhật</button></div><p class="ct" style="margin:8px 0 0">Mọi chỗ ghi “Nhóm trưởng”, “TV1”, “TV2” sẽ đổi theo tên này, cho cả nhóm.</p></div><div class="card"><h2>Hoạt động mới</h2><div class="log">${log}</div></div></div></div></div>`}
+
+function addForm(){return `<div class="card" style="background:var(--acs)"><div class="row">
+ <label>Giai đoạn<select id="a_ph">${PH.map((p,i)=>`<option value="${i}" ${tab===i?'selected':''}>${p}</option>`).join('')}</select></label>
+ <label>Giao cho<select id="a_ow">${['NT','TV1','TV2'].map(r=>`<option value="${r}">${who(r)}</option>`).join('')}</select></label></div><br>
+ <label class="ct">Công việc (động từ + chức năng)<input id="a_ti"></label><br><br>
+ <label class="ct">Nội dung yêu cầu thực hiện<textarea id="a_ct" rows="2"></textarea></label><br>
+ <label class="ct">Phối hợp<input id="a_sp" placeholder="VD: TV1, Nhóm trưởng"></label><br>
+ <button class="p" data-a="add">Giao việc</button> <button data-a="addform">Hủy</button></div>`}
+
+function detail(t){
+ const cms=Object.entries(t.cm||{}).sort((a,b)=>a[1].ts-b[1].ts).map(([,c])=>`<div class="cm ${c.type}"><small>${who(c.by)} · ${fmt(c.ts)}${c.type==='block'?' · Vướng mắc':c.type==='rv-ok'?' · Nhóm trưởng: Đạt':c.type==='rv-no'?' · Nhóm trưởng: Làm lại':''}</small><br>${R(c.text)}</div>`).join('')||'<span class="ct">Chưa có trao đổi.</span>';
+ const mine=me.role===t.ow||isNT();
+ const sts=(isNT()?[0,1,2,3,4]:[0,1,2]).map(i=>`<button data-a="st" data-id="${t.id}" data-v="${i}" ${t.st===i?'class="p"':''}>${ST[i]}</button>`).join('');
+ return `<tr class="dt"><td></td><td colspan="4">
+ <b>Cập nhật tiến độ</b>${mine?'':' <span class="ct">(việc của người khác – bạn vẫn có thể báo)</span>'}<div class="acts">${sts}</div>
+ <b>Trao đổi, ghi chú, điểm vướng mắc</b>${cms}
+ <textarea id="cin" rows="2" placeholder="Ghi rõ điều cả nhóm cần biết…"></textarea>
+ <div class="acts"><button class="p" data-a="post" data-id="${t.id}" data-t="note">Gửi ghi chú</button><button data-a="post" data-id="${t.id}" data-t="block">Báo vướng mắc</button>${t.blocked?`<button data-a="unblock" data-id="${t.id}">Đã gỡ vướng</button>`:''}</div>
+ ${isNT()?`<b>Đánh giá của nhóm trưởng</b><textarea id="rin" rows="2" placeholder="Nhận xét; bắt buộc nếu yêu cầu làm lại…"></textarea>
+ <div class="acts"><button class="p" data-a="rv" data-id="${t.id}" data-v="ok">Đạt – hoàn thành</button><button class="d" data-a="rv" data-id="${t.id}" data-v="no">Yêu cầu làm lại</button>
+ <select data-a="own" data-id="${t.id}" style="width:auto">${['NT','TV1','TV2'].map(r=>`<option value="${r}" ${t.ow===r?'selected':''}>Giao: ${who(r)}</option>`).join('')}</select>
+ ${t.cu?`<button class="d" data-a="del" data-id="${t.id}">Xóa việc</button>`:''}</div>`:''}</td></tr>`}
+
+/* ---- Sự kiện ---- */
+document.addEventListener('click',e=>{
+ const b=e.target.closest('[data-a]');if(!b||b.tagName==='SELECT')return;const a=b.dataset.a,id=b.dataset.id,v=id&&(D&&D.tasks||{})[id];
+ const T=s=>put('tasks/'+id+'/'+s[0],s[1]);
+ if(a==='login'){const t=$('#lt').value.trim().replace(/[.#$\[\]\/]/g,'-');if(!t)return $('#lt').focus();me={team:t,role:$('#lr').value};localStorage.setItem('nvqs_me',JSON.stringify(me));start();render()}
+ else if(a==='logout'){localStorage.removeItem('nvqs_me');location.reload()}
+ else if(a==='tab'){tab=+b.dataset.i;open=null;render()}
+ else if(a==='open'){open=open===id?null:id;render()}
+ else if(a==='addform'){open=open==='_add'?null:'_add';render()}
+ else if(a==='names'){put('names',{nt:$('#n_nt').value.trim()||'Nhóm trưởng',tv1:$('#n_tv1').value.trim()||'TV1',tv2:$('#n_tv2').value.trim()||'TV2'});log('Cập nhật họ tên thành viên')}
+ else if(a==='st'){T(['st',+b.dataset.v]);log(who(me.role)+' đặt “'+v.ti+'” → '+ST[+b.dataset.v])}
+ else if(a==='post'){const x=$('#cin').value.trim();if(!x)return $('#cin').focus();const k=b.dataset.t;put(`tasks/${id}/cm/${uid()}`,{by:me.role,text:x,ts:Date.now(),type:k});
+  if(k==='block'){T(['blocked',true]);log(who(me.role)+' báo vướng ở “'+v.ti+'”')}else log(who(me.role)+' ghi chú ở “'+v.ti+'”')}
+ else if(a==='unblock'){T(['blocked',false]);log(who(me.role)+' gỡ vướng ở “'+v.ti+'”')}
+ else if(a==='rv'){const ok=b.dataset.v==='ok',x=$('#rin').value.trim();if(!ok&&!x)return $('#rin').focus();
+  put(`tasks/${id}/cm/${uid()}`,{by:me.role,text:x||'Đạt yêu cầu.',ts:Date.now(),type:ok?'rv-ok':'rv-no'});T(['st',ok?3:4]);log('Nhóm trưởng '+(ok?'duyệt':'yêu cầu làm lại')+' “'+v.ti+'”')}
+ else if(a==='del'){if(confirm('Xóa việc này?')){put('tasks/'+id,null);open=null}}
+ else if(a==='add'){const ti=$('#a_ti').value.trim();if(!ti)return $('#a_ti').focus();const nid='c'+uid();
+  put('tasks/'+nid,{ph:+$('#a_ph').value,ti,ct:$('#a_ct').value.trim(),ow:$('#a_ow').value,sp:$('#a_sp').value.trim(),st:0,cu:true});log(who(me.role)+' giao thêm việc “'+ti+'”');open=null}
+});
+document.addEventListener('change',e=>{const s=e.target;if(s.dataset.a==='me'){me.role=s.value;localStorage.setItem('nvqs_me',JSON.stringify(me));render()}
+ if(s.dataset.a==='own'){put('tasks/'+s.dataset.id+'/ow',s.value);log('Nhóm trưởng giao lại “'+D.tasks[s.dataset.id].ti+'” cho '+who(s.value))}});
+me?(start(),render()):render();
+</script></body></html>
