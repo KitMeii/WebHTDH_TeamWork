@@ -66,7 +66,7 @@ function put(path,val){
 /* ---- Trạng thái và tiện ích ---- */
 const $=s=>document.querySelector(s),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let D=null,me=JSON.parse(localStorage.getItem('nvqs_me')||'null'),tab=0,open=null;
+let editing=null,D=null,me=JSON.parse(localStorage.getItem('nvqs_me')||'null'),tab=0,open=null;
 const names=()=>Object.assign({nt:'Nhóm trưởng',tv1:'TV1',tv2:'TV2'},D&&D.names);
 const R=s=>{const n=names();return esc(s).replace(/Nhóm trưởng/g,esc(n.nt)).replace(/TV1/g,esc(n.tv1)).replace(/TV2/g,esc(n.tv2))};
 const who=r=>esc(names()[(r||'').toLowerCase()]||r);
@@ -128,11 +128,19 @@ function addForm(){return `<div class="card" style="background:var(--acs)"><div 
  <label class="ct">Phối hợp<input id="a_sp" placeholder="VD: TV1, Nhóm trưởng"></label><br>
  <button class="p" data-a="add">Giao việc</button> <button data-a="addform">Hủy</button></div>`}
 
+const editForm=t=>`<div class="card"><div class="row">
+ <label>Giai đoạn<select id="e_ph">${PH.map((p,i)=>`<option value="${i}" ${t.ph===i?'selected':''}>${p}</option>`).join('')}</select></label>
+ <label>Chịu trách nhiệm<select id="e_ow">${['NT','TV1','TV2'].map(r=>`<option value="${r}" ${t.ow===r?'selected':''}>${who(r)}</option>`).join('')}</select></label></div><br>
+ <label class="ct">Công việc (động từ + chức năng)<input id="e_ti" value="${esc(t.ti)}"></label><br><br>
+ <label class="ct">Nội dung yêu cầu thực hiện<textarea id="e_ct" rows="3">${esc(t.ct)}</textarea></label><br>
+ <label class="ct">Phối hợp<input id="e_sp" value="${esc(t.sp||'')}"></label>
+ <div class="acts"><button class="p" data-a="save" data-id="${t.id}">Lưu thay đổi</button><button data-a="editform" data-id="${t.id}">Hủy</button></div></div>`;
 function detail(t){
- const cms=Object.entries(t.cm||{}).sort((a,b)=>a[1].ts-b[1].ts).map(([,c])=>`<div class="cm ${c.type}"><small>${who(c.by)} · ${fmt(c.ts)}${c.type==='block'?' · Vướng mắc':c.type==='rv-ok'?' · Nhóm trưởng: Đạt':c.type==='rv-no'?' · Nhóm trưởng: Làm lại':''}</small><br>${R(c.text)}</div>`).join('')||'<span class="ct">Chưa có trao đổi.</span>';
+ const cms=Object.entries(t.cm||{}).sort((a,b)=>a[1].ts-b[1].ts).map(([cid,c])=>`<div class="cm ${c.type}"><small>${who(c.by)} · ${fmt(c.ts)}${c.type==='block'?' · Vướng mắc':c.type==='rv-ok'?' · Nhóm trưởng: Đạt':c.type==='rv-no'?' · Nhóm trưởng: Làm lại':''}</small><br>${R(c.text)}${(c.by===me.role||isNT())?` <button class="x" data-a="delcm" data-id="${t.id}" data-c="${cid}">Xóa</button>`:''}</div>`).join('')||'<span class="ct">Chưa có trao đổi.</span>';
  const mine=me.role===t.ow||isNT();
  const sts=(isNT()?[0,1,2,3,4]:[0,1,2]).map(i=>`<button data-a="st" data-id="${t.id}" data-v="${i}" ${t.st===i?'class="p"':''}>${ST[i]}</button>`).join('');
  return `<tr class="dt"><td></td><td colspan="4">
+ <div class="acts"><button data-a="editform" data-id="${t.id}">Sửa nội dung việc</button></div>${editing===t.id?editForm(t):''}
  <b>Cập nhật tiến độ</b>${mine?'':' <span class="ct">(việc của người khác – bạn vẫn có thể báo)</span>'}<div class="acts">${sts}</div>
  <b>Trao đổi, ghi chú, điểm vướng mắc</b>${cms}
  <textarea id="cin" rows="2" placeholder="Ghi rõ điều cả nhóm cần biết…"></textarea>
@@ -140,7 +148,7 @@ function detail(t){
  ${isNT()?`<b>Đánh giá của nhóm trưởng</b><textarea id="rin" rows="2" placeholder="Nhận xét; bắt buộc nếu yêu cầu làm lại…"></textarea>
  <div class="acts"><button class="p" data-a="rv" data-id="${t.id}" data-v="ok">Đạt – hoàn thành</button><button class="d" data-a="rv" data-id="${t.id}" data-v="no">Yêu cầu làm lại</button>
  <select data-a="own" data-id="${t.id}" style="width:auto">${['NT','TV1','TV2'].map(r=>`<option value="${r}" ${t.ow===r?'selected':''}>Giao: ${who(r)}</option>`).join('')}</select>
- ${t.cu?`<button class="d" data-a="del" data-id="${t.id}">Xóa việc</button>`:''}</div>`:''}</td></tr>`}
+ <button class="d" data-a="del" data-id="${t.id}">Xóa việc</button></div>`:''}</td></tr>`}
 
 /* ---- Sự kiện ---- */
 document.addEventListener('click',e=>{
@@ -148,8 +156,8 @@ document.addEventListener('click',e=>{
  const T=s=>put('tasks/'+id+'/'+s[0],s[1]);
  if(a==='login'){const t=$('#lt').value.trim().replace(/[.#$\[\]\/]/g,'-');if(!t)return $('#lt').focus();me={team:t,role:$('#lr').value};localStorage.setItem('nvqs_me',JSON.stringify(me));start();render()}
  else if(a==='logout'){localStorage.removeItem('nvqs_me');location.reload()}
- else if(a==='tab'){tab=+b.dataset.i;open=null;render()}
- else if(a==='open'){open=open===id?null:id;render()}
+ else if(a==='tab'){tab=+b.dataset.i;open=null;editing=null;render()}
+ else if(a==='open'){open=open===id?null:id;editing=null;render()}
  else if(a==='addform'){open=open==='_add'?null:'_add';render()}
  else if(a==='names'){put('names',{nt:$('#n_nt').value.trim()||'Nhóm trưởng',tv1:$('#n_tv1').value.trim()||'TV1',tv2:$('#n_tv2').value.trim()||'TV2'});log('Cập nhật họ tên thành viên')}
  else if(a==='st'){T(['st',+b.dataset.v]);log(who(me.role)+' đặt “'+v.ti+'” → '+ST[+b.dataset.v])}
@@ -158,7 +166,11 @@ document.addEventListener('click',e=>{
  else if(a==='unblock'){T(['blocked',false]);log(who(me.role)+' gỡ vướng ở “'+v.ti+'”')}
  else if(a==='rv'){const ok=b.dataset.v==='ok',x=$('#rin').value.trim();if(!ok&&!x)return $('#rin').focus();
   put(`tasks/${id}/cm/${uid()}`,{by:me.role,text:x||'Đạt yêu cầu.',ts:Date.now(),type:ok?'rv-ok':'rv-no'});T(['st',ok?3:4]);log('Nhóm trưởng '+(ok?'duyệt':'yêu cầu làm lại')+' “'+v.ti+'”')}
- else if(a==='del'){if(confirm('Xóa việc này?')){put('tasks/'+id,null);open=null}}
+ else if(a==='editform'){editing=editing===id?null:id;render()}
+ else if(a==='save'){const ti=$('#e_ti').value.trim();if(!ti)return $('#e_ti').focus();
+  put('tasks/'+id,{...v,ph:+$('#e_ph').value,ti,ct:$('#e_ct').value.trim(),ow:$('#e_ow').value,sp:$('#e_sp').value.trim()});editing=null;log(who(me.role)+' sửa nội dung “'+ti+'”')}
+ else if(a==='delcm'){if(confirm('Xóa ghi chú này?'))put(`tasks/${id}/cm/${b.dataset.c}`,null)}
+ else if(a==='del'){if(confirm('Xóa việc này cùng toàn bộ trao đổi?')){put('tasks/'+id,null);open=null;log('Nhóm trưởng xóa việc “'+v.ti+'”')}}
  else if(a==='add'){const ti=$('#a_ti').value.trim();if(!ti)return $('#a_ti').focus();const nid='c'+uid();
   put('tasks/'+nid,{ph:+$('#a_ph').value,ti,ct:$('#a_ct').value.trim(),ow:$('#a_ow').value,sp:$('#a_sp').value.trim(),st:0,cu:true});log(who(me.role)+' giao thêm việc “'+ti+'”');open=null}
 });
